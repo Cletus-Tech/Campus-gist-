@@ -1,0 +1,92 @@
+-- Campus Gist initial database baseline
+-- Applied directly to Supabase on 2026-11-04; kept here as the repository baseline.
+create extension if not exists pgcrypto;
+
+create table if not exists public.universities (id uuid primary key default gen_random_uuid(), name text not null, slug text not null unique, country text not null default 'Nigeria', created_at timestamptz not null default now());
+create table if not exists public.campuses (id uuid primary key default gen_random_uuid(), university_id uuid not null references public.universities(id) on delete cascade, name text not null, slug text not null, city text, state text, is_active boolean not null default true, created_at timestamptz not null default now(), unique(university_id, slug));
+create table if not exists public.profiles (id uuid primary key references auth.users(id) on delete cascade, campus_id uuid references public.campuses(id) on delete set null, username text unique, full_name text, avatar_url text, bio text, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), constraint username_length check (username is null or char_length(username) between 3 and 30));
+create table if not exists public.campus_roles (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, campus_id uuid references public.campuses(id) on delete cascade, role text not null check (role in ('super_admin','campus_admin','news_editor','moderator','accommodation_manager','transport_manager','academic_editor')), created_at timestamptz not null default now(), unique(user_id, campus_id, role));
+create table if not exists public.news_sources (id uuid primary key default gen_random_uuid(), campus_id uuid references public.campuses(id) on delete cascade, name text not null, source_type text not null check (source_type in ('website','rss','x','telegram','whatsapp_submission','instagram','facebook','manual')), source_url text, is_trusted boolean not null default false, is_active boolean not null default true, created_at timestamptz not null default now());
+create table if not exists public.news_posts (id uuid primary key default gen_random_uuid(), campus_id uuid references public.campuses(id) on delete set null, source_id uuid references public.news_sources(id) on delete set null, author_id uuid references auth.users(id) on delete set null, title text not null, body text not null, image_url text, category text not null default 'general', source_url text, status text not null default 'draft' check (status in ('draft','pending_review','published','rejected','archived')), is_breaking boolean not null default false, published_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists public.posts (id uuid primary key default gen_random_uuid(), campus_id uuid references public.campuses(id) on delete set null, author_id uuid not null references auth.users(id) on delete cascade, body text not null, media_urls text[] not null default '{}', visibility text not null default 'campus' check (visibility in ('campus','public')), created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists public.comments (id uuid primary key default gen_random_uuid(), post_id uuid not null references public.posts(id) on delete cascade, author_id uuid not null references auth.users(id) on delete cascade, body text not null, created_at timestamptz not null default now());
+create table if not exists public.hostel_power_reports (id uuid primary key default gen_random_uuid(), campus_id uuid not null references public.campuses(id) on delete cascade, hostel_name text not null, status text not null check (status in ('electricity_available','no_light','power_restored','power_interrupted')), note text, contributor_id uuid not null references auth.users(id) on delete cascade, reported_at timestamptz not null default now(), expires_at timestamptz not null default (now() + interval '6 hours'), is_confirmed boolean not null default false);
+create table if not exists public.accommodation_listings (id uuid primary key default gen_random_uuid(), campus_id uuid not null references public.campuses(id) on delete cascade, owner_id uuid not null references auth.users(id) on delete cascade, title text not null, description text, price_amount numeric(12,2), price_period text default 'yearly' check (price_period in ('yearly','monthly','semester','negotiable')), address text, latitude double precision, longitude double precision, media_urls text[] not null default '{}', facilities text[] not null default '{}', status text not null default 'pending_review' check (status in ('pending_review','published','rejected','rented')), is_verified boolean not null default false, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists public.campus_locations (id uuid primary key default gen_random_uuid(), campus_id uuid not null references public.campuses(id) on delete cascade, name text not null, category text not null, description text, latitude double precision, longitude double precision, created_at timestamptz not null default now());
+create table if not exists public.notifications (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, title text not null, body text not null, type text not null default 'general', data jsonb not null default '{}', read_at timestamptz, created_at timestamptz not null default now());
+create table if not exists public.content_reports (id uuid primary key default gen_random_uuid(), reporter_id uuid not null references auth.users(id) on delete cascade, content_type text not null, content_id uuid not null, reason text not null, details text, status text not null default 'open' check (status in ('open','reviewing','resolved','dismissed')), created_at timestamptz not null default now());
+
+create index if not exists campuses_university_id_idx on public.campuses(university_id);
+create index if not exists profiles_campus_id_idx on public.profiles(campus_id);
+create index if not exists news_posts_feed_idx on public.news_posts(campus_id, status, published_at desc);
+create index if not exists posts_feed_idx on public.posts(campus_id, created_at desc);
+create index if not exists comments_post_id_idx on public.comments(post_id, created_at);
+create index if not exists power_reports_current_idx on public.hostel_power_reports(campus_id, hostel_name, reported_at desc, expires_at);
+create index if not exists accommodation_feed_idx on public.accommodation_listings(campus_id, status, created_at desc);
+create index if not exists locations_campus_idx on public.campus_locations(campus_id, category);
+create index if not exists notifications_user_idx on public.notifications(user_id, created_at desc);
+create index if not exists accommodation_owner_id_idx on public.accommodation_listings(owner_id);
+create index if not exists campus_roles_campus_id_idx on public.campus_roles(campus_id);
+create index if not exists comments_author_id_idx on public.comments(author_id);
+create index if not exists content_reports_reporter_id_idx on public.content_reports(reporter_id);
+create index if not exists power_reports_contributor_id_idx on public.hostel_power_reports(contributor_id);
+create index if not exists news_posts_author_id_idx on public.news_posts(author_id);
+create index if not exists news_posts_source_id_idx on public.news_posts(source_id);
+create index if not exists news_sources_campus_id_idx on public.news_sources(campus_id);
+create index if not exists posts_author_id_idx on public.posts(author_id);
+
+alter table public.universities enable row level security;
+alter table public.campuses enable row level security;
+alter table public.profiles enable row level security;
+alter table public.campus_roles enable row level security;
+alter table public.news_sources enable row level security;
+alter table public.news_posts enable row level security;
+alter table public.posts enable row level security;
+alter table public.comments enable row level security;
+alter table public.hostel_power_reports enable row level security;
+alter table public.accommodation_listings enable row level security;
+alter table public.campus_locations enable row level security;
+alter table public.notifications enable row level security;
+alter table public.content_reports enable row level security;
+
+grant select on public.universities, public.campuses, public.campus_locations, public.news_sources to anon, authenticated;
+grant select on public.profiles, public.posts, public.comments, public.news_posts, public.accommodation_listings, public.hostel_power_reports to anon, authenticated;
+grant insert, update on public.profiles to authenticated;
+grant insert, update, delete on public.posts to authenticated;
+grant insert, update, delete on public.comments to authenticated;
+grant insert on public.hostel_power_reports to authenticated;
+grant insert, update, delete on public.accommodation_listings to authenticated;
+grant select, update on public.notifications to authenticated;
+grant insert on public.content_reports to authenticated;
+grant select on public.campus_roles to authenticated;
+
+create policy "Universities are publicly readable" on public.universities for select to anon, authenticated using (true);
+create policy "Campuses are publicly readable" on public.campuses for select to anon, authenticated using (true);
+create policy "Campus locations are publicly readable" on public.campus_locations for select to anon, authenticated using (true);
+create policy "Profiles are publicly readable" on public.profiles for select to anon, authenticated using (true);
+create policy "Users create own profile" on public.profiles for insert to authenticated with check ((select auth.uid()) = id);
+create policy "Users update own profile" on public.profiles for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
+create policy "Active news source directory is readable" on public.news_sources for select to anon, authenticated using (is_active = true);
+create policy "Published news is publicly readable" on public.news_posts for select to anon, authenticated using (status = 'published');
+create policy "Campus posts are readable" on public.posts for select to anon, authenticated using (visibility = 'public' or campus_id is not null);
+create policy "Users create own posts" on public.posts for insert to authenticated with check ((select auth.uid()) = author_id);
+create policy "Users update own posts" on public.posts for update to authenticated using ((select auth.uid()) = author_id) with check ((select auth.uid()) = author_id);
+create policy "Users delete own posts" on public.posts for delete to authenticated using ((select auth.uid()) = author_id);
+create policy "Comments are readable" on public.comments for select to anon, authenticated using (true);
+create policy "Users create own comments" on public.comments for insert to authenticated with check ((select auth.uid()) = author_id);
+create policy "Users update own comments" on public.comments for update to authenticated using ((select auth.uid()) = author_id) with check ((select auth.uid()) = author_id);
+create policy "Users delete own comments" on public.comments for delete to authenticated using ((select auth.uid()) = author_id);
+create policy "Authenticated users read power reports" on public.hostel_power_reports for select to authenticated using (expires_at > now());
+create policy "Users submit own power reports" on public.hostel_power_reports for insert to authenticated with check ((select auth.uid()) = contributor_id);
+create policy "Published accommodation is readable" on public.accommodation_listings for select to anon, authenticated using (status = 'published');
+create policy "Owners create accommodation listings" on public.accommodation_listings for insert to authenticated with check ((select auth.uid()) = owner_id);
+create policy "Owners update accommodation listings" on public.accommodation_listings for update to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
+create policy "Owners delete accommodation listings" on public.accommodation_listings for delete to authenticated using ((select auth.uid()) = owner_id);
+create policy "Users read own notifications" on public.notifications for select to authenticated using ((select auth.uid()) = user_id);
+create policy "Users update own notifications" on public.notifications for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "Users create own reports" on public.content_reports for insert to authenticated with check ((select auth.uid()) = reporter_id);
+create policy "Users read own reports" on public.content_reports for select to authenticated using ((select auth.uid()) = reporter_id);
+create policy "Users read own role assignments" on public.campus_roles for select to authenticated using ((select auth.uid()) = user_id);
+
+insert into public.universities (name, slug, country) values ('Federal University of Technology, Akure', 'futa', 'Nigeria') on conflict (slug) do nothing;
+insert into public.campuses (university_id, name, slug, city, state) select id, 'FUTA Main Campus', 'futa-main', 'Akure', 'Ondo' from public.universities where slug='futa' on conflict (university_id, slug) do nothing;
