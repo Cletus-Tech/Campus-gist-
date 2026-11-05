@@ -3,13 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Campus Gist — Everything Campus. One Platform.",
-  description: "Campus news, student community, accommodation, campus power updates and more.",
+  description: "Trusted campus news, student updates and useful campus services, starting with FUTA.",
+  applicationName: "Campus Gist",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+  return <html lang="en"><body>{children}</body></html>;
 }
