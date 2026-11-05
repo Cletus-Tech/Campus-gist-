@@ -23,7 +23,7 @@ export default async function DashboardPage({searchParams}:{searchParams:SearchP
   const alert=typeof params.error==="string"?params.error:"";
   const statusLabel=(value:string)=>({electricity_available:"Electricity available",no_light:"No light",power_restored:"Power restored",power_interrupted:"Power interrupted"}[value]||value.replaceAll("_"," "));
   return <main className="dashboard-shell">
-    <header className="dashboard-topbar"><Link className="brand" href="/"><span className="brand-mark">CG</span><span>CAMPUS <b>GIST</b></span></Link><nav><span className="campus-pill">{campus?.name||"Campus not selected"}</span>{isAdmin&&<Link href="/dashboard/admin">Admin</Link>}<form action="/auth/signout" method="post"><button className="text-button">Sign out</button></form></nav></header>
+    <header className="dashboard-topbar"><Link className="brand" href="/"><span className="brand-mark">CG</span><span>CAMPUS <b>GIST</b></span></Link><nav><span className="campus-pill">{campus?.name||"Campus not selected"}</span><form action="/auth/signout" method="post"><button className="text-button">Sign out</button></form></nav></header>
     <section className="dashboard-welcome"><div><div className="eyebrow">YOUR CAMPUS, RIGHT NOW</div><h1>Hello, {displayName}.</h1><p>{campus?.city?campus.city+", "+campus.state:"Your campus community"} — here is what is happening.</p></div><span className="welcome-date">CAMPUS GIST / LIVE FEED</span></section>
     {params.power==="sent"&&<p className="notice success">Your power update has been submitted.</p>}
     {params.tip==="sent"&&<p className="notice success">Your campus tip has been sent for review.</p>}
