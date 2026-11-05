@@ -28,6 +28,18 @@ create trigger on_auth_user_created
 
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 
+create or replace function public.current_user_campus_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $
+  select campus_id from public.profiles where id = (select auth.uid()) limit 1;
+$;
+revoke all on function public.current_user_campus_id() from public, anon;
+grant execute on function public.current_user_campus_id() to authenticated;
+
 create or replace function public.has_campus_role(target_campus_id uuid, allowed_roles text[])
 returns boolean
 language sql
@@ -68,7 +80,7 @@ create policy "Users submit own news tips" on public.news_tips
   for insert to authenticated
   with check (
     (select auth.uid()) = submitted_by
-    and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.campus_id = campus_id)
+    and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.campus_id = news_tips.campus_id)
   );
 drop policy if exists "Users read own news tips" on public.news_tips;
 create policy "Users read own news tips" on public.news_tips
@@ -89,7 +101,7 @@ create policy "Campus posts are readable" on public.posts
     visibility = 'public'
     or (
       (select auth.uid()) is not null
-      and campus_id = (select p.campus_id from public.profiles p where p.id = (select auth.uid()))
+      and campus_id = public.current_user_campus_id()
     )
   );
 
