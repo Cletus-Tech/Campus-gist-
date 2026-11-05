@@ -1,23 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const params = useSearchParams();
+  const [nextPath, setNextPath] = useState("/dashboard");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(params.get("error") ? "Your confirmation link could not be completed. Please sign in or request a new link." : "");
+  const [message, setMessage] = useState("");
+  useEffect(() => { const query = new URLSearchParams(window.location.search); setNextPath(query.get("next") || "/dashboard"); if (query.get("error")) setMessage("Your confirmation link could not be completed. Please sign in or request a new link."); }, []);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) { setMessage(error.message); return; }
-    window.location.assign(params.get("next") || "/dashboard");
+    window.location.assign(nextPath.startsWith("/") ? nextPath : "/dashboard");
   }
   return <main className="auth-layout"><section className="auth-card">
     <Link className="brand" href="/"><span className="brand-mark">CG</span><span>CAMPUS <b>GIST</b></span></Link>
