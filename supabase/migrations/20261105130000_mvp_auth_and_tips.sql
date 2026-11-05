@@ -12,7 +12,13 @@ begin
   values (
     new.id,
     nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
-    nullif(new.raw_user_meta_data ->> 'campus_id', '')::uuid
+    (
+      select c.id
+      from public.campuses c
+      where c.is_active = true
+        and c.id::text = new.raw_user_meta_data ->> 'campus_id'
+      limit 1
+    )
   )
   on conflict (id) do update
     set full_name = coalesce(public.profiles.full_name, excluded.full_name),
